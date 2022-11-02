@@ -1,0 +1,76 @@
+---
+# Source: pulsar/templates/bookkeeper-cluster-initialize.yaml
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "pulsar-bookie-init"
+  namespace: default
+  labels:
+    app: pulsar
+    chart: pulsar-2.9.3
+    release: pulsar
+    heritage: Helm
+    cluster: pulsar
+    component: "bookie-init"
+spec:
+# This feature was previously behind a feature gate for several Kubernetes versions and will default to true in 1.23 and beyond
+# https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
+  template:
+    spec:
+      initContainers:
+      - name: wait-zookeeper-ready
+        image: "hp3v-docker-np.oneartifactoryprod.verizon.com/apachepulsar-all:v2.9.3"
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+          - >-
+            until nslookup pulsar-zookeeper-0.pulsar-zookeeper.default; do
+              sleep 3;
+            done;
+      containers:
+      - name: "pulsar-bookie-init"
+        image: "hp3v-docker-np.oneartifactoryprod.verizon.com/apachepulsar-all:v2.9.3"
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            cpu: 4
+            memory: 8Gi
+          requests:
+            cpu: 2
+            memory: 4Gi
+        command: ["sh", "-c"]
+        args:
+          - >
+            bin/apply-config-from-env.py conf/bookkeeper.conf;
+            
+            if bin/bookkeeper shell whatisinstanceid; then
+                echo "bookkeeper cluster already initialized";
+            else
+                bin/bookkeeper shell initnewcluster;
+            fi
+        envFrom:
+        - configMapRef:
+            name: "pulsar-bookie"
+        volumeMounts:
+        
+      volumes:
+      
+      restartPolicy: Never

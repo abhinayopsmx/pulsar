@@ -1,0 +1,58 @@
+---
+# Source: pulsar/templates/bookkeeper-configmap.yaml
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "pulsar-bookie"
+  namespace: default
+  labels:
+    app: pulsar
+    chart: pulsar-2.9.3
+    release: pulsar
+    heritage: Helm
+    cluster: pulsar
+    component: bookie
+data:
+  # common config
+  zkServers: "pulsar-zookeeper:2181"
+  zkLedgersRootPath: "/ledgers"
+  # enable bookkeeper http server
+  httpServerEnabled: "true"
+  httpServerPort: "8000"
+  # config the stats provider
+  statsProviderClass: org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider
+  # use hostname as the bookie id
+  useHostNameAsBookieID: "true"
+  # Do not retain journal files as it increase the disk utilization
+  journalMaxBackups: "0"
+  journalDirectories: "/pulsar/data/bookkeeper/journal"
+  PULSAR_PREFIX_journalDirectories: "/pulsar/data/bookkeeper/journal"
+  ledgerDirectories: "/pulsar/data/bookkeeper/ledgers"
+  # TLS config
+  
+  PULSAR_GC: |
+    -XX:+UseG1GC -XX:MaxGCPauseMillis=10 -XX:+ParallelRefProcEnabled -XX:+UnlockExperimentalVMOptions -XX:+DoEscapeAnalysis -XX:ParallelGCThreads=4 -XX:ConcGCThreads=4 -XX:G1NewSizePercent=50 -XX:+DisableExplicitGC -XX:-ResizePLAB -XX:+ExitOnOutOfMemoryError -XX:+PerfDisableSharedMem -Xlog:gc* -Xlog:gc::utctime -Xlog:safepoint -Xlog:gc+heap=trace -verbosegc
+  PULSAR_MEM: |
+    -Xms128m -Xmx256m -XX:MaxDirectMemorySize=256m
+  dbStorage_readAheadCacheMaxSizeMb: "32"
+  dbStorage_rocksDB_blockCacheSize: "8388608"
+  dbStorage_rocksDB_writeBufferSizeMB: "8"
+  dbStorage_writeCacheMaxSizeMb: "32"

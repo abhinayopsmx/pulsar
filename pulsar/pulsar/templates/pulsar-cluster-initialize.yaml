@@ -1,0 +1,86 @@
+---
+# Source: pulsar/templates/pulsar-cluster-initialize.yaml
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "pulsar-pulsar-init"
+  namespace: default
+  labels:
+    app: pulsar
+    chart: pulsar-2.9.3
+    release: pulsar
+    heritage: Helm
+    cluster: pulsar
+    component: pulsar-init
+spec:
+# This feature was previously behind a feature gate for several Kubernetes versions and will default to true in 1.23 and beyond
+# https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
+  template:
+    spec:
+      initContainers:
+      - name: wait-zookeeper-ready
+        image: "apachepulsar/pulsar-all:2.9.3"
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+          - >-
+            until nslookup pulsar-zookeeper-0.pulsar-zookeeper.default; do
+              sleep 3;
+            done;
+      # This initContainer will wait for bookkeeper initnewcluster to complete
+      # before initializing pulsar metadata
+      - name: pulsar-bookkeeper-verify-clusterid
+        image: "apachepulsar/pulsar-all:2.9.3"
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+        - >
+          bin/apply-config-from-env.py conf/bookkeeper.conf;
+          
+          until bin/bookkeeper shell whatisinstanceid; do
+            sleep 3;
+          done;
+        envFrom:
+        - configMapRef:
+            name: "pulsar-bookie"
+        volumeMounts:
+        
+      containers:
+      - name: "pulsar-pulsar-init"
+        image: "apachepulsar/pulsar-all:2.9.3"
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c"]
+        args:
+          - |
+            
+            bin/pulsar initialize-cluster-metadata \
+              --cluster pulsar \
+              --zookeeper pulsar-zookeeper:2181 \
+              --configuration-store pulsar-zookeeper:2181 \
+              --web-service-url http://pulsar-broker.default.svc.cluster.local:8080/ \
+              --web-service-url-tls https://pulsar-broker.default.svc.cluster.local:8443/ \
+              --broker-service-url pulsar://pulsar-broker.default.svc.cluster.local:6650/ \
+              --broker-service-url-tls pulsar+ssl://pulsar-broker.default.svc.cluster.local:6651/ ;
+        volumeMounts:
+        
+      volumes:
+      
+      restartPolicy: OnFailure
